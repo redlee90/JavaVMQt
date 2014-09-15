@@ -3,15 +3,14 @@
 #include "types.h"
 #include "Frame.h"
 #include "opcodes.h"
-#include "ClassArea.h"
+#include "MethodArea.h"
 #include "ObjectHeap.h"
-#include "NativeMethods.h"
 
 Variable* Frame::pOpStack; //static
 Frame* Frame::pBaseFrame;
 
 ExecutionEngine::ExecutionEngine(void)
-:	pClassHeap(NULL),
+:	pMethodArea(NULL),
 	pObjectHeap(NULL)
 {	
 }
@@ -22,46 +21,21 @@ ExecutionEngine::~ExecutionEngine(void)
 
 u4 ExecutionEngine::Execute(Frame* pFrameStack)
 {
-	ASSERT(pFrameStack);
+    //ASSERT(pFrameStack);
 	Frame* pFrame=&pFrameStack[0];
-	ASSERT(pFrame);
-
-#ifdef DBG_PRINT
-	DbgPrint(_T("Current Frame %ld Stack start at %ld\n"),pFrame-Frame::pBaseFrame, pFrame->stack-Frame::pOpStack );
-#endif
-
-	if(pFrame->pMethod->access_flags & ACC_NATIVE)
-	{
-
-		DbgPrint(_T("Enter Native Method\n"));
-
-		ExecuteNativeMethod(pFrame);
-
-		DbgPrint(_T("Exit Native Method\n"));
-
-		return 0;
-	}
+    //ASSERT(pFrame);
 
 	u1 *bc=pFrame->pMethod->pCode_attr->code + pFrame->pc;	
 	
 	i4 error=0;
 	JavaClass *pClass = pFrame->pClass;
-	CString strMethod;
+    QString strMethod;
 	pClass->GetStringFromConstPool(pFrame->pMethod->name_index, strMethod);
 
-	DbgPrint(_T("Execute At Class %s Method %s \n"), pClass->GetName(), strMethod); 
 	i4 index=0;
-	i8 longVal;
+    qint64 longVal;
 	while(1)
-	{
-
-		DbgPrint(_T("Stack values "));
-		for(int i=0;i<pFrame->sp + pFrame->stack - Frame::pOpStack+1;i++)
-		{
-			DbgPrint(_T("[%d] "), Frame::pOpStack[i].intValue);
-		}
-		DbgPrint(_T("\n"));
-		DbgPrint(_T("Opcode = %s [%d] Stack=%d [+%d]\n"),OpcodeDesc[(u1)bc[pFrame->pc]], (u1)bc[pFrame->pc], pFrame->sp, pFrame->stack - Frame::pOpStack); 
+	{		
 		switch(bc[pFrame->pc])
 		{
 		case nop:
@@ -84,7 +58,7 @@ u4 ExecutionEngine::Execute(Frame* pFrameStack)
 
 		case aconst_null:			
 			pFrame->sp++;
-			pFrame->stack[pFrame->sp].object.heapPtr = 0; 
+            pFrame->stack[pFrame->sp].object.index = 0;
 			pFrame->pc++;				
 			break;
 
@@ -267,7 +241,7 @@ u4 ExecutionEngine::Execute(Frame* pFrameStack)
 			pFrame->pc++;
 			break;
 		case ladd:// 97 /*(0x61)*/
-			longVal = (i8)(((i8)pFrame->stack[pFrame->sp-3].intValue<<32) | (i8)pFrame->stack[pFrame->sp-2].intValue)+(i8)(((i8)pFrame->stack[pFrame->sp-1].intValue<<32) | (i8)pFrame->stack[pFrame->sp].intValue);
+            longVal = (qint64)(((qint64)pFrame->stack[pFrame->sp-3].intValue<<32) | (qint64)pFrame->stack[pFrame->sp-2].intValue)+(qint64)(((qint64)pFrame->stack[pFrame->sp-1].intValue<<32) | (qint64)pFrame->stack[pFrame->sp].intValue);
 			pFrame->stack[pFrame->sp-3].intValue=HIINT64(longVal);
 			pFrame->stack[pFrame->sp-2].intValue=LOINT64(longVal);
 			pFrame->sp -= 2;
@@ -497,13 +471,13 @@ u4 ExecutionEngine::Execute(Frame* pFrameStack)
 			break;
 		//Method return instructions
 		case ireturn: //172 (0xac)			
-			DbgPrint(_T("----IRETURN------\n"));
+
 			pFrame->stack[0].intValue=pFrame->stack[pFrame->sp].intValue;			
 			return ireturn;
 			break;
 
 		case _return: //177 (0xb1): Return (void) from method			
-			DbgPrint(_T("----RETURN------\n"));
+
 			return 0;//METHOD_RETURN;
 			break;
 		//////////////// Thread Synchronization ////////////////////
@@ -521,7 +495,7 @@ u4 ExecutionEngine::Execute(Frame* pFrameStack)
 		if(error) break;
 	}
 	
-	ASSERT(!error);
+    //ASSERT(!error);
 
 	return 0;
 }
@@ -535,9 +509,7 @@ Variable ExecutionEngine::LoadConstant(JavaClass *pClass, u1 nIndex)
 {
 	Variable v;
 	v.ptrValue = 0;
-	CString *pStrVal=NULL, strTemp;
-	//CString strClass= pClass->GetName();
-	//ShowClassInfo(pClass);
+    QString pStrVal=NULL, strTemp;
 
 	char* cp=(char *)pClass->constant_pool[nIndex];
 	u2 i;
@@ -553,21 +525,17 @@ Variable ExecutionEngine::LoadConstant(JavaClass *pClass, u1 nIndex)
 		break;
 
 	case CONSTANT_String:
-		i=getu2((char *)&cp[1]);
-
-        pStrVal = new QString();
-		
+		i=getu2((char *)&cp[1]);	
 		pClass->GetStringFromConstPool(i, strTemp);	
-		pStrVal->Append(strTemp);
-		object = this->pObjectHeap->CreateStringObject(pStrVal, pClassHeap);
-		v.ptrValue=object.heapPtr;
+        pStrVal.append(strTemp);
+        object = this->pObjectHeap->CreateStringObject(pStrVal, pMethodArea);
+        v.ptrValue=object.index;
 		break;
 
 	case CONSTANT_Double:
 		break;
 
 	case CONSTANT_Long:
-
 		break;		
 	}
 	return v;
@@ -579,7 +547,7 @@ void ExecutionEngine::PutField(Frame* pFrameStack)
 	Variable value=pFrameStack[0].stack[pFrameStack[0].sp];
 	Variable *pVarList=this->pObjectHeap->GetObjectPointer(obj.object);
 	JavaClass *pClass = (JavaClass *)pVarList[0].ptrValue;
-	ASSERT(pClass && pClass->magic == 0xCAFEBABE);
+    //ASSERT(pClass && pClass->magic == 0xCAFEBABE);
 	//ShowClassInfo(pClass);
 	pVarList[nIndex+1]=value;
 }
@@ -591,7 +559,7 @@ void ExecutionEngine::GetField(Frame* pFrame)
 	
 	Variable *pVarList=this->pObjectHeap->GetObjectPointer(obj.object);
 	JavaClass *pClass = (JavaClass *)pVarList[0].ptrValue;
-	ASSERT(pClass && pClass->magic == 0xCAFEBABE);
+    //ASSERT(pClass && pClass->magic == 0xCAFEBABE);
 	//ShowClassInfo(pClass);
 	pFrame->stack[pFrame->sp]=pVarList[nIndex+1];
 }
@@ -602,7 +570,7 @@ void ExecutionEngine::ExecuteInvokeVirtual(Frame* pFrameStack, u2 type)
 	Variable objectRef = pFrameStack[0].stack[pFrameStack[0].sp]; 
 	char *pConstPool = (char *)pFrameStack[0].pClass->constant_pool[mi];
 
-	ASSERT(pConstPool[0] == CONSTANT_Methodref);
+    //ASSERT(pConstPool[0] == CONSTANT_Methodref);
 		
 	u2 classIndex = getu2(&pConstPool[1]);
 	u2 nameAndTypeIndex = getu2(&pConstPool[3]);
@@ -610,22 +578,22 @@ void ExecutionEngine::ExecuteInvokeVirtual(Frame* pFrameStack, u2 type)
 	//get class at pool index 
 	pConstPool = (char *)pFrameStack[0].pClass->constant_pool[classIndex];
 
-	ASSERT(pConstPool[0] == CONSTANT_Class);
+    //ASSERT(pConstPool[0] == CONSTANT_Class);
 
 	u2 ni=getu2(&pConstPool[1]);
 
-	CString strClassName;
+    QString strClassName;
 	pFrameStack[0].pClass->GetStringFromConstPool(ni, strClassName);
 
 
-	JavaClass *pClass=pClassHeap->GetClass(strClassName);
+    JavaClass *pClass=pMethodArea->GetClass(strClassName);
 
 	//ShowClassInfo(pClass);
 
 	pConstPool = (char *)pFrameStack[0].pClass->constant_pool[nameAndTypeIndex];
 
 
-	ASSERT(pConstPool[0] == CONSTANT_NameAndType);
+    //ASSERT(pConstPool[0] == CONSTANT_NameAndType);
 
 
 	method_info_ex method;
@@ -636,7 +604,7 @@ void ExecutionEngine::ExecuteInvokeVirtual(Frame* pFrameStack, u2 type)
 
 	method.access_flags = 0; // todo set 
 
-	CString strName, strDesc;
+    QString strName, strDesc;
 	pFrameStack[0].pClass->GetStringFromConstPool(method.name_index, strName);
 	pFrameStack[0].pClass->GetStringFromConstPool(method.descriptor_index, strDesc);
 
@@ -676,13 +644,11 @@ void ExecutionEngine::ExecuteInvokeVirtual(Frame* pFrameStack, u2 type)
 	
 	pFrameStack[1].stack = &Frame::pOpStack[pFrameStack->stack-Frame::pOpStack+pFrameStack[0].sp-params+1];
 	pFrameStack[1].sp=nDiscardStack-1;
-	DbgPrint(_T("Invoking method %s%s, \n"), strName, strDesc);
-	DbgPrint(_T("Last Frame Stack %d Params %d Stack start at %d\n"),pFrameStack[0].stack-Frame::pOpStack+pFrameStack[0].sp,pFrameStack[1].sp,pFrameStack[1].stack-Frame::pOpStack );
 
 	this->Execute(&pFrameStack[1]);
 
 	//if returns then get on stack	
-	if(strDesc.Find(_T(")V")) < 0)
+    if(strDesc.contains(")V") < 0)
 	{
 		nDiscardStack--;		
 	}
@@ -690,142 +656,46 @@ void ExecutionEngine::ExecuteInvokeVirtual(Frame* pFrameStack, u2 type)
 	pFrameStack[0].sp-=nDiscardStack;
 }
 
-u2 ExecutionEngine::GetMethodParametersCount(CString strMethodDesc)
+u2 ExecutionEngine::GetMethodParametersCount(QString strMethodDesc)
 {
 	u2 count=0;
 	
-	int i, len=strMethodDesc.GetLength();
+    int i, len=strMethodDesc.size();
 
 	//todo: long/double takes 2 stack position
 	for(i=1;i<len;i++)
 	{
-		if(strMethodDesc.GetAt(i) =='L')
+        if(strMethodDesc.at(i) =='L')
 		{
-			while(strMethodDesc.GetAt(i) !=';') i++;
+            while(strMethodDesc.at(i) !=';') i++;
 		}
-		if(strMethodDesc.GetAt(i) ==')') break;
+        if(strMethodDesc.at(i) ==')') break;
 		count++;
 	}
 
 	return count;
 }
 
-u2 ExecutionEngine::GetMethodParametersStackCount(CString strMethodDesc)
+u2 ExecutionEngine::GetMethodParametersStackCount(QString strMethodDesc)
 {
 	u2 count=0;
 	
-	int i, len=strMethodDesc.GetLength();
+    int i, len=strMethodDesc.size();
 
 	//todo: long/double takes 2 stack position
 	for(i=1;i<len;i++)
 	{
-		if(strMethodDesc.GetAt(i) =='L')
+        if(strMethodDesc.at(i) =='L')
 		{
-			while(strMethodDesc.GetAt(i) !=';') i++;
+            while(strMethodDesc.at(i) !=';') i++;
 		}
-		if(strMethodDesc.GetAt(i) ==')') break;
-		if(strMethodDesc.GetAt(i) =='J' || strMethodDesc.GetAt(i) =='D')
+        if(strMethodDesc.at(i) ==')') break;
+        if(strMethodDesc.at(i) =='J' || strMethodDesc.at(i) =='D')
 			count++;
 		count++;
 	}
 
 	return count;
-}
-
-pNativeMethod GetNativeMethod(CString strSign)
-{
-	if(FALSE)
-	{
-	}
-	else if(!strSign.Compare(_T("java/lang/String@valueOf(F)Ljava/lang/String;")))
-	{
-		return String_valueOf_F;
-	}
-	else if(!strSign.Compare(_T("java/lang/String@valueOf(J)Ljava/lang/String;")))
-	{
-		return String_valueOf_J;
-	}
-	else if(!strSign.Compare(_T("java/lang/StringBuilder@append(Ljava/lang/String;)Ljava/lang/StringBuilder;")))
-	{
-		return StringBuilder_append_String;
-	}
-	else if(!strSign.Compare(_T("java/lang/StringBuilder@append(I)Ljava/lang/StringBuilder;")))
-	{
-		return StringBuilder_append_I;
-	}
-	else if(!strSign.Compare(_T("java/lang/StringBuilder@append(C)Ljava/lang/StringBuilder;")))
-	{
-		return StringBuilder_append_C;
-	}
-	else if(!strSign.Compare(_T("java/lang/StringBuilder@append(Z)Ljava/lang/StringBuilder;")))
-	{
-		return StringBuilder_append_Z;
-	}
-	else if(!strSign.Compare(_T("java/lang/StringBuilder@append(Ljava/lang/Object;)Ljava/lang/StringBuilder;")))
-	{
-		return StringBuilder_append_Object;
-	}
-	else if(!strSign.Compare(_T("java/lang/StringBuilder@append(F)Ljava/lang/StringBuilder;")))
-	{
-		return StringBuilder_append_F;
-	}
-	else if(!strSign.Compare(_T("java/lang/StringBuilder@append(J)Ljava/lang/StringBuilder;")))
-	{
-		return StringBuilder_append_J;
-	}
-
-	
-	
-	else if(!strSign.Compare(_T("java/lang/StringBuilder@toString()Ljava/lang/String;")))
-	{
-		return StringBuilder_toString_String;
-	}
-	else if(!strSign.Compare(_T("Test@Print(Ljava/lang/String;)V")))
-	{
-		return Print;
-	}
-
-	return NULL;
-}
-
-u4 ExecutionEngine::ExecuteNativeMethod(Frame* pFrameStack)
-{
-	ASSERT(pFrameStack);
-	Frame* pFrame=&pFrameStack[0];
-	ASSERT(pFrame->pMethod->access_flags & ACC_NATIVE);
-
-	JavaClass *pClass = pFrame->pClass;
-	CString strClassName, strMethod, strDesc, strSignature;
-	strClassName=pClass->GetName();
-	pClass->GetStringFromConstPool(pFrame->pMethod->name_index, strMethod);
-	pClass->GetStringFromConstPool(pFrame->pMethod->descriptor_index, strDesc);
-	DbgPrint(_T("Execute At Class %s Method %s%s  \n"),strClassName , strMethod, strDesc);
-	strSignature=strClassName+_T("@")+strMethod+strDesc;
-	pNativeMethod pNativeMethod=GetNativeMethod(strSignature);
-	RuntimeEnvironment rte;
-	rte.pFrameStack=pFrameStack;
-	rte.pClassHeap= pClassHeap;
-	rte.pObjectHeap= pObjectHeap;
-
-	if(pNativeMethod == NULL)
-	{
-		// what should I do here??
-		// System Panic
-
-		ASSERT(FALSE);
-	}
-	else
-	{
-		Variable retVal = pNativeMethod(&rte);
-
-		//if returns then get on stack	
-		if(strDesc.Find(_T(")V")) < 0)
-		{
-			//todo validate
-			pFrame->stack[0]=retVal;
-		}
-	}
-	return 0;
 }
 
 int ExecutionEngine::ExecuteNew(Frame* pFrame)

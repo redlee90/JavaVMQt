@@ -7,13 +7,13 @@
 
 class JavaClass;
 
-class ClassArea
+class MethodArea
 {
     QMap<QString,JavaClass*> m_ClassMap;
 public:
-    ClassArea(void);
+    MethodArea(void);
 public:
-    virtual ~ClassArea(void);
+    virtual ~MethodArea(void);
 public:
     bool AddClass(JavaClass* pJavaClass);
     JavaClass* GetClass(QString strClassName);

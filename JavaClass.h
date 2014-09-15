@@ -4,8 +4,9 @@
 #include "types.h"
 #include "constants.h"
 
-class ClassArea;
+class MethodArea;
 class ObjectHeap;
+class Object;
 
 struct cp_info
 {
@@ -165,7 +166,7 @@ public:
 	virtual ~JavaClass(void);
 
 public:
-    virtual bool LoadClassFromFile(QString lpszFilePath);
+    virtual bool LoadClassFromFile(QString filePath);
 	void SetByteCode(void* pByteCode);
 
     bool ParseClass(void);
@@ -175,25 +176,27 @@ public:
     bool ParseAttributes(char* &p);
     bool GetConstantPool(u2 nIndex, cp_info& const_pool);
 
-    bool GetStringFromConstPool(int nIndex, char *strValue);
-    char *GetName(void);
-    char *GetSuperClassName(void);
+    bool GetStringFromConstPool(int nIndex, QString& strValue);
+    QString GetName(void);
+    QString GetSuperClassName(void);
     bool ParseMethodCodeAttribute(int nMethodIndex, Code_attribute* pCode_attr);
     int GetMethodIndex(QString strMethodName, QString strMethodDesc,JavaClass* &pClass);
     int GetFieldIndex(QString strName, QString& strDesc);
-    void SetClassHeap(ClassArea *pClassHeap){this->m_pClassHeap=pClassHeap;}
+    void SetMethodArea(MethodArea *pMethodArea){this->m_pMethodArea=pMethodArea;}
 	virtual u4 GetObjectSize(void);
 	virtual u4 GetObjectFieldCount(void);
 	JavaClass* GetSuperClass(void);
     bool CreateObject(u2 index, ObjectHeap *pObjectHeap, Object& object);
     bool CreateObjectArray(u2 index, u4 count, ObjectHeap *pObjectHeap, Object& object);
+public:
+    void showClassInfo(void);
 private:
 	size_t m_nByteCodeLength;
 	void *m_pByteCode;
 	u2	m_nObjectFieldsCount;
     bool ParseConstantPool(char* &p);
 	int GetConstantPoolSize(char* p);
-    ClassArea *m_pClassHeap;
+    MethodArea *m_pMethodArea;
 };
 
 class Utf8String: private CONSTANT_Utf8_info

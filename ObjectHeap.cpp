@@ -1,6 +1,6 @@
 #include "ObjectHeap.h"
 #include "JavaClass.h"
-#include "ClassArea.h"
+#include "MethodArea.h"
 #include <iostream>
 
 using namespace std;
@@ -30,14 +30,14 @@ Object ObjectHeap::CreateObject(JavaClass* pClass)
 	if(!obj) return object;
 	memset(obj, 0, sizeof(Variable)*osize);
     object.index=m_nNextObjectID++;
-    obj[0].ptrValue = (int64_t *) pClass;
+    obj[0].ptrValue = (quintptr) pClass;
 
     m_ObjectMap.insert(object.index,obj);
 
 	return object;
 }
 
-Object ObjectHeap::CreateStringObject(QString pStrValue, ClassArea *pClassHeap)
+Object ObjectHeap::CreateStringObject(QString pStrValue, MethodArea *pClassHeap)
 {
 	Object object;	
     object.index = 0;
@@ -52,7 +52,7 @@ Object ObjectHeap::CreateStringObject(QString pStrValue, ClassArea *pClassHeap)
 	Variable *pVar= this->GetObjectPointer(object);
 	if(pVar==NULL) return object;
 
-    pVar[1].ptrValue=(int64_t*)&pStrValue;
+    pVar[1].ptrValue=(quintptr)&pStrValue;
 
 	return object;
 }
@@ -64,7 +64,7 @@ bool ObjectHeap::CreateObjectArray(JavaClass* pClass, u4 count, Object& object)
 	if(pVar)
 	{
 		memset(pVar, 0, sizeof(Variable)*(count+1));
-        pVar[0].ptrValue = (int64_t*)pClass;
+        pVar[0].ptrValue = (quintptr)pClass;
 	}
 	else
         return false;

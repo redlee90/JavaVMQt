@@ -1,16 +1,16 @@
-#include "ClassArea.h"
+#include "MethodArea.h"
 #include "JavaClass.h"
 #include <QFileInfo>
 
-ClassArea::ClassArea(void)
+MethodArea::MethodArea(void)
 {
 }
 
-ClassArea::~ClassArea(void)
+MethodArea::~MethodArea(void)
 {
 }
 
-BOOL ClassArea::AddClass(JavaClass* pClass)
+bool MethodArea::AddClass(JavaClass* pClass)
 {
     if(!pClass) return false;
     QString name=pClass->GetName();
@@ -19,25 +19,23 @@ BOOL ClassArea::AddClass(JavaClass* pClass)
         m_ClassMap.insert(name, pClass);
         return true;
     } else {
-        cerr<<"Class already exists, calling abort";
+
         return false;
     }
 }
 
-JavaClass* ClassArea::GetClass(QString className)
+JavaClass* MethodArea::GetClass(QString className)
 {   
     if (!m_ClassMap.contains(className)) {
-        cerr<<"can't get class "<<className<<endl;
         return (JavaClass*)NULL;
     } else {
         return m_ClassMap.value(className);
     }
 }
 
-BOOL ClassArea::LoadClass(QString className, JavaClass *pClass)
+bool MethodArea::LoadClass(QString className, JavaClass *pClass)
 {
     if(!pClass) {
-        cerr<<"class name does not exist, loadClass aborts"<<endl;
         return false;
     }
 
@@ -47,7 +45,7 @@ BOOL ClassArea::LoadClass(QString className, JavaClass *pClass)
 
     if(!(pClass->LoadClassFromFile(absPath))) return false;
 
-	pClass->SetClassHeap(this);
+    pClass->SetMethodArea(this);
 
 	return AddClass(pClass);
 }

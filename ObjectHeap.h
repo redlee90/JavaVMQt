@@ -7,7 +7,7 @@
 #include <QMap>
 
 class JavaClass;
-class ClassArea;
+class MethodArea;
 class Object;
 
 class ObjectHeap
@@ -19,7 +19,7 @@ public:
 public:
     Variable* GetObjectPointer(Object object);
 	Object CreateObject(JavaClass* pClass);
-    Object CreateStringObject(QString pStrValue, ClassArea *pClassHeap);
+    Object CreateStringObject(QString pStrValue, MethodArea *pClassHeap);
 	Object CreateNewArray(u1 type, i4 count);
     bool CreateObjectArray(JavaClass* pClass, u4 count, Object& object);
 private:

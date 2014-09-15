@@ -15,25 +15,23 @@ CONFIG   -= app_bundle
 TEMPLATE = app
 
 
-SOURCES += main.cpp \
+SOURCES += \
     opcodes.cpp \
     ObjectHeap.cpp \
-    NativeMethods.cpp \
-    jvm.cpp \
     JavaClass.cpp \
-    GarbageCollector.cpp \
     ExecutionEngine.cpp \
-    ClassArea.cpp
+    MethodArea.cpp \
+    ClassLoader.cpp \
+    JVM.cpp
 
 HEADERS += \
     types.h \
     opcodes.h \
     ObjectHeap.h \
-    NativeMethods.h \
     JavaClass.h \
-    GarbageCollector.h \
     ExecutionEngine.h \
     constants.h \
     Object.h \
     Frame.h \
-    ClassArea.h
+    MethodArea.h \
+    ClassLoader.h

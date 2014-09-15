@@ -1,7 +1,10 @@
 #ifndef FRAME_H
 #define FRAME_H
 
+#include "Object.h"
+
 struct method_info_ex;
+
 
 class Frame
 {

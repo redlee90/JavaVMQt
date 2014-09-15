@@ -7,8 +7,8 @@
 class Object
 {
 public:
-    u4 index;
-    u1 type;
+    qint64 index;
+    uchar type;
 };
 
 union Variable
@@ -17,7 +17,7 @@ union Variable
     u2 shortValue;
     u4 intValue;
     f4 floatValue;
-    int64_t *ptrValue;
+    quintptr ptrValue;
     Object object;
 };
 

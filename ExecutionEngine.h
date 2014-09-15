@@ -2,8 +2,14 @@
 #define EXECUTION_ENGINE_H
 
 #include "types.h"
-class ClassArea;
+#include "Object.h"
+#include <QString>
+
+class JavaClass;
+class MethodArea;
 class ObjectHeap;
+class Frame;
+
 class ExecutionEngine
 {
 public:
@@ -17,7 +23,7 @@ public:
 public:
 	Variable LoadConstant(JavaClass *pClass, u1 nIndex);
 
-    ClassArea *pClassHeap;
+    MethodArea *pMethodArea;
 	ObjectHeap *pObjectHeap;
 
 public:
@@ -29,8 +35,8 @@ public:
 public:
 	void ExecuteInvokeVirtual(Frame* pFrameStack, u2 type);
 public:
-	u2 GetMethodParametersCount(CString strMethodDesc);
-	u2 GetMethodParametersStackCount(CString strMethodDesc);
+    u2 GetMethodParametersCount(QString strMethodDesc);
+    u2 GetMethodParametersStackCount(QString strMethodDesc);
 
 public:
 	u4 ExecuteNativeMethod(Frame* pFrameStack);

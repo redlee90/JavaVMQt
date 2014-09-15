@@ -1,10 +1,11 @@
 #include "JavaClass.h"
-#include "ClassArea.h"
+#include "MethodArea.h"
 #include "ObjectHeap.h"
 #include <QString>
+#include <QFile>
 
 JavaClass::JavaClass(void):
-	m_pClassHeap(NULL),
+    m_pMethodArea(NULL),
 	m_pByteCode(NULL),
 	m_nByteCodeLength(0),
 	m_nObjectFieldsCount(0)
@@ -14,36 +15,26 @@ JavaClass::JavaClass(void):
 JavaClass::~JavaClass(void)
 {
 	// TODO: delete constant_pool, fields, methods and attributes etc.
-
-	if(m_pByteCode) delete m_pByteCode;
-	//if(methods) delete[] methods;
-	//if(fields) delete[] fields;	
 }
 
 
-BOOL JavaClass::LoadClassFromFile(CString lpszFilePath)
-{
-    u1 *p;
-    size_t lenRead, len;
+bool JavaClass::LoadClassFromFile(QString filePath)
+{ 
+    qint64 lenRead, len;
 
-	CFile file;
-	CFileException e;
+    QFile file(filePath);
 
-    // ASSERT(PathFileExists(lpszFilePath));  //removed
-	if(!PathFileExists(lpszFilePath)) return FALSE;
+    file.open(QIODevice::ReadOnly | QIODevice::Text);
 
-	BOOL bRet=file.Open(lpszFilePath, CFile::modeRead, &e);
-    // ASSERT(bRet);
-	if(!bRet) return FALSE;
-
-	len=(size_t)file.GetLength();	    
+    len=file.size();
     
     m_nByteCodeLength = len;
 
-    p = (u1 *) new u1[len+2];
+    char *p = new char[len+2];
+
     if (p != NULL)
     {
-		lenRead=file.Read(p, (UINT)len);
+        lenRead=file.read(p, len);
         if (len != lenRead)
         {
             delete p;
@@ -52,10 +43,10 @@ BOOL JavaClass::LoadClassFromFile(CString lpszFilePath)
     }
     else
 	{
-		file.Close();
-		return FALSE;
+        file.close();
+        return false;
 	}
-	file.Close();
+    file.close();
 
     if (p)
 	{
@@ -68,22 +59,20 @@ BOOL JavaClass::LoadClassFromFile(CString lpszFilePath)
 
 void JavaClass::SetByteCode(void* pByteCode)
 {
-	if(m_pByteCode) delete m_pByteCode;
+    //if(m_pByteCode) delete m_pByteCode;
 	m_pByteCode=pByteCode;
 
 	if(m_pByteCode) ParseClass();
 }
 
-BOOL JavaClass::ParseClass(void)
+bool JavaClass::ParseClass(void)
 {
-    if(m_pByteCode==NULL || m_nByteCodeLength < sizeof(JavaClassFileFormat)+20) //why 20?
-		return FALSE;
+    if(m_pByteCode==NULL || m_nByteCodeLength < sizeof(JavaClassFileFormat)+20)
+        return false;
 
 	char *p=(char *)m_pByteCode;
 
 	magic = getu4(p); p+=4;
-
-	//ASSERT(magic == 0xCAFEBABE);
 
 	minor_version=getu2(p); p+=2;
     major_version=getu2(p); p+=2;
@@ -107,8 +96,6 @@ BOOL JavaClass::ParseClass(void)
 
 	methods_count = getu2(p);p+=2;
 
-	//printf("Methods count = %d\n", methods_count);
-
 	if(methods_count > 0)
 	{
 		ParseMethods(p);
@@ -116,19 +103,17 @@ BOOL JavaClass::ParseClass(void)
 
 	attributes_count = getu2(p);p+=2;
 
-	//printf("Class attributes_count = %d\n", attributes_count);
-
 	if(attributes_count > 0)
 		ParseAttributes(p);
 
 	return 0;
 }
 
-BOOL JavaClass::ParseAttributes(char* &p)
+bool JavaClass::ParseAttributes(char* &p)
 {
 	attributes = new attribute_info*[attributes_count];
 
-	if(methods == NULL) return FALSE;
+    if(methods == NULL) return false;
 	
 
 	for(int i=0;i<attributes_count;i++)
@@ -137,19 +122,17 @@ BOOL JavaClass::ParseAttributes(char* &p)
 		u2 name_index=getu2(p);p+=2; //attribute_name_index
 		u4 len=getu4(p);p+=4; //len
 		p+=len;
-		//printf("Attribute name index = %d\n", name_index);
-
 	}
 
-	return TRUE;
+    return true;
 }
 
 //TODO: Cashe the findings here
-BOOL JavaClass::ParseMethods(char* &p)
+bool JavaClass::ParseMethods(char* &p)
 {
 	methods = new method_info_ex[methods_count];
 
-	if(methods == NULL) return FALSE;
+    if(methods == NULL) return false;
 	
 	for(int i=0;i<methods_count;i++)
 	{
@@ -160,13 +143,9 @@ BOOL JavaClass::ParseMethods(char* &p)
 		methods[i].descriptor_index= getu2(p); p+=2; //descriptor_index
 		methods[i].attributes_count=getu2(p); p+=2;
 		
-        const char* strName, strDesc;
+        QString strName, strDesc;
 		GetStringFromConstPool(methods[i].name_index, strName);
 		GetStringFromConstPool(methods[i].descriptor_index, strDesc);
-
-		//wprintf(_T("Method = %s%s\n"),strName, strDesc);
-		
-		//printf("Method has total %d attributes\n",methods[i].attributes_count);
 
 		methods[i].pCode_attr=NULL;
 		if(methods[i].attributes_count>0)
@@ -186,14 +165,14 @@ BOOL JavaClass::ParseMethods(char* &p)
 		}		
 	}
 
-	return TRUE;
+    return true;
 }
 
-BOOL JavaClass::ParseConstantPool(char* &p)
+bool JavaClass::ParseConstantPool(char* &p)
 {	
 	constant_pool = new cp_info*[constant_pool_count-1];
 
-	if(constant_pool == NULL) return FALSE;
+    if(constant_pool == NULL) return false;
 	
 
 	for(int i=1;i<constant_pool_count;i++)
@@ -203,8 +182,6 @@ BOOL JavaClass::ParseConstantPool(char* &p)
 		int size = GetConstantPoolSize(p);
 		p+= size;
 
-		//printf("Constant pool %d type %d\n",i,(u1)constant_pool[i]->tag);
-
 		if(constant_pool[i]->tag == CONSTANT_Long || constant_pool[i]->tag == CONSTANT_Double)
 		{
 			constant_pool[i+1]=NULL;
@@ -212,14 +189,14 @@ BOOL JavaClass::ParseConstantPool(char* &p)
 		}
 	}
 
-	return TRUE;
+    return true;
 }
 
-BOOL JavaClass::ParseFields(char* &p)
+bool JavaClass::ParseFields(char* &p)
 {
 	fields = new field_info_ex[fields_count];
 
-	if(fields == NULL) return FALSE;
+    if(fields == NULL) return false;
 	
 
 	for(int i=0;i<fields_count;i++)
@@ -231,14 +208,12 @@ BOOL JavaClass::ParseFields(char* &p)
 		fields[i].descriptor_index= getu2(p);p+=2; //
 		fields[i].attributes_count=getu2(p); p+=2;
 		
-		//printf("Field %d has total %d attributes\n",i, fields[i].attributes_count);
 		if(fields[i].attributes_count>0)
 		{
 			//skip attributes
 			for(int a=0;a<fields[i].attributes_count;a++)
 			{
 				u2 name_index=getu2(p); p+=2;
-				//printf("Attribute name index = %d\n", name_index);
 				u4 len=getu4(p);p+=4;
 				p+=len;
 			}
@@ -246,20 +221,19 @@ BOOL JavaClass::ParseFields(char* &p)
 		
 	}
 
-	return TRUE;
+    return true;
 
 }
-BOOL JavaClass::ParseInterfaces(char* &p)
+bool JavaClass::ParseInterfaces(char* &p)
 {	
 	interfaces = new u2[interfaces_count];
 	
 	for(int i=0;i<interfaces_count;i++)
 	{
 		interfaces[i] = getu2(p); p+=2;
-		//printf("Interface at %d\n",interfaces[i]); 
 	}
 
-	return TRUE;
+    return true;
 }
 
 int JavaClass::GetConstantPoolSize(char* p)
@@ -291,16 +265,15 @@ int JavaClass::GetConstantPoolSize(char* p)
 	case CONSTANT_Utf8:
 		return 3+getu2(p+1);
 	default:
-		ASSERT(FALSE);
 		break;
 	}
 
 	return 0;
 }
 
-BOOL JavaClass::GetConstantPool(u2 nIndex, cp_info& const_pool)
+bool JavaClass::GetConstantPool(u2 nIndex, cp_info& const_pool)
 {
-	if(nIndex>constant_pool_count-1) return FALSE;
+    if(nIndex>constant_pool_count-1) return false;
 
 	char *cpool= (char *)constant_pool[nIndex];
 
@@ -325,40 +298,32 @@ BOOL JavaClass::GetConstantPool(u2 nIndex, cp_info& const_pool)
 	return 0;
 }
 
-BOOL JavaClass::GetStringFromConstPool(int nIndex, char* strValue)
+bool JavaClass::GetStringFromConstPool(int nIndex, QString& strValue)
 {
 
 	if(nIndex<1 || nIndex >= constant_pool_count)
 	{
-        cerr<<"constant pool instant size is illegal"<<endl;
-		return FALSE;
+        return false;
 	}
-
-    /*
-     * if(constant_pool[nIndex]->tag != CONSTANT_Utf8)
-     *	return FALSE;
-     * (Rui) redudance
-     */
 
 	u1 *p =(u1 *)constant_pool[nIndex];
 
-    short length=getu2(p+1);
+    qint8 length=getu2(p+1);
 	char *buffer= new char[length+1];
     buffer[length]=0; // (Rui) corresponds to null in ascii
 
     //memcpy(buffer, &p[3], length); (Rui) just do a substitution here
     memcpy(buffer, p+3, length);
-    memcpy(strValue,buffer,length+1);
-    ASSERT(strlen(strValue)==length+1);
-
-    strValue = buffer;
+    //memcpy(strValue,buffer,length+1);
+    //ASSERT(strlen(strValue)==length+1);
+    strValue = QString::fromLocal8Bit(buffer);
 	delete buffer;
-	return TRUE;
+    return true;
 }
 
-char* JavaClass::GetName(void)
+QString JavaClass::GetName(void)
 {
-	CString retVal=_T("");
+    QString retVal="";
 	if(constant_pool[this_class]->tag != CONSTANT_Class)
 		return retVal;
 	char *bc=(char*)constant_pool[this_class];
@@ -367,9 +332,9 @@ char* JavaClass::GetName(void)
 	return retVal;
 }
 
-char* JavaClass::GetSuperClassName(void)
+QString JavaClass::GetSuperClassName(void)
 {
-    char* retVal = new char[20];
+    QString retVal;
 	if(super_class<1) return retVal;
 
 	if(constant_pool[super_class]->tag != CONSTANT_Class)
@@ -380,9 +345,9 @@ char* JavaClass::GetSuperClassName(void)
 	return retVal;
 }
 
-BOOL JavaClass::ParseMethodCodeAttribute(int nMethodIndex, Code_attribute* pCode_attr)
+bool JavaClass::ParseMethodCodeAttribute(int nMethodIndex, Code_attribute* pCode_attr)
 {
-	if(methods==NULL || nMethodIndex > methods_count) return FALSE;
+    if(methods==NULL || nMethodIndex > methods_count) return false;
 	char *pMi, *bc;
 	pMi= bc = (char *)methods[nMethodIndex].pMethodInfoBase;
 	bc+=6;
@@ -394,10 +359,10 @@ BOOL JavaClass::ParseMethodCodeAttribute(int nMethodIndex, Code_attribute* pCode
 		for(int a=0;a<nAttributes;a++)
 		{
 			u2 name_index=getu2(bc); bc+=2;		
-			CString strAttributeName;
+            QString strAttributeName;
 			GetStringFromConstPool(name_index, strAttributeName);
 			// may be we can compare indexe directly??
-			if(!strAttributeName.CompareNoCase(_T("Code")))
+            if(!strAttributeName.compare("Code",Qt::CaseInsensitive))
 			{
 				char *ca=bc;
 				pCode_attr->attribute_name_index=name_index;//already scanned;
@@ -448,9 +413,9 @@ BOOL JavaClass::ParseMethodCodeAttribute(int nMethodIndex, Code_attribute* pCode
 	return 0;
 }
 
-int JavaClass::GetMethodIndex(CString strMethodName, CString strMethodDesc,JavaClass* &pClass)
+int JavaClass::GetMethodIndex(QString strMethodName, QString strMethodDesc,JavaClass* &pClass)
 {
-	if(methods == NULL) return FALSE;
+    if(methods == NULL) return false;
 	
 	JavaClass* pCurClass=this;
 	while(pCurClass)
@@ -458,14 +423,14 @@ int JavaClass::GetMethodIndex(CString strMethodName, CString strMethodDesc,JavaC
 		//_tprintf(_T("Searching class %s\n"), pCurClass->GetName());
 		for(int i=0;i<pCurClass->methods_count;i++)
 		{
-			CString name, desc;
+            QString name, desc;
 
 			pCurClass->GetStringFromConstPool(pCurClass->methods[i].name_index, name);
-			if(name.Compare(strMethodName)) continue;
+            if(name.compare(strMethodName,Qt::CaseSensitive)) continue;
 
 			pCurClass->GetStringFromConstPool(pCurClass->methods[i].descriptor_index, desc);
 
-			if(!desc.Compare(strMethodDesc))
+            if(!desc.compare(strMethodDesc,Qt::CaseSensitive))
 			{
 				if(pClass)
 					pClass = pCurClass;
@@ -487,15 +452,15 @@ int JavaClass::GetMethodIndex(CString strMethodName, CString strMethodDesc,JavaC
 	return -1;
 }
 
-int JavaClass::GetFieldIndex(CString strName, CString& strDesc)
+int JavaClass::GetFieldIndex(QString strName, QString& strDesc)
 {
-	if(fields == NULL) return FALSE;
+    if(fields == NULL) return false;
 	
 	for(int i=0;i<fields_count;i++)
 	{
-		CString name, desc;
+        QString name, desc;
 		GetStringFromConstPool(fields[i].name_index, name);
-		if(name.Compare(strName)) continue;
+        if(name.compare(strName,Qt::CaseSensitive)) continue;
 
 		GetStringFromConstPool(fields[i].descriptor_index, desc);
 
@@ -509,8 +474,8 @@ int JavaClass::GetFieldIndex(CString strName, CString& strDesc)
 u4 JavaClass::GetObjectSize(void)
 {
 	u4 size= fields_count * sizeof(Variable);
-    char* superClass=GetSuperClassName();
-	JavaClass *pSuperClass = m_pClassHeap->GetClass(superClass);
+    QString superClass=GetSuperClassName();
+    JavaClass *pSuperClass = m_pMethodArea->GetClass(superClass);
 	u4 superObjSize=0;
 	if(pSuperClass)
 		superObjSize=pSuperClass->GetObjectSize();
@@ -522,8 +487,8 @@ u4 JavaClass::GetObjectSize(void)
 u4 JavaClass::GetObjectFieldCount(void)
 {
     u4 count = fields_count;
-	CString superClass=GetSuperClassName();
-	JavaClass *pSuperClass = m_pClassHeap->GetClass(superClass);
+    QString superClass=GetSuperClassName();
+    JavaClass *pSuperClass = m_pMethodArea->GetClass(superClass);
 	u4 superObjFieldCount=0;
 	if(pSuperClass)
 		superObjFieldCount=pSuperClass->GetObjectFieldCount();
@@ -534,47 +499,106 @@ u4 JavaClass::GetObjectFieldCount(void)
 
 JavaClass* JavaClass::GetSuperClass(void)
 {
-	CString superClass=GetSuperClassName();
-	JavaClass *pSuperClass = m_pClassHeap->GetClass(superClass);
+    QString superClass=GetSuperClassName();
+    JavaClass *pSuperClass = m_pMethodArea->GetClass(superClass);
 
 	return pSuperClass;
 }
 
-BOOL JavaClass::CreateObject(u2 index, ObjectHeap *pObjectHeap, Object& object)
+bool JavaClass::CreateObject(u2 index, ObjectHeap *pObjectHeap, Object& object)
 {
 	char *cp=(char*)this->constant_pool[index];
-	ASSERT(cp[0] == CONSTANT_Class);
-	ASSERT(pObjectHeap);
+    //ASSERT(cp[0] == CONSTANT_Class);
+    //ASSERT(pObjectHeap);
 	if(cp[0] != CONSTANT_Class)
-		return FALSE;
+        return false;
 
 	u2 name_index=getu2(&cp[1]);
-	CString strClassName;
+    QString strClassName;
 	if(!this->GetStringFromConstPool(name_index, strClassName))
-		return FALSE;
-	
-	DbgPrint("Creating new object of class [%ws]\n", strClassName);
+        return false;
 
-	JavaClass *pNewClass=this->m_pClassHeap->GetClass(strClassName);
-	if(pNewClass == NULL) return FALSE;
+    JavaClass *pNewClass=this->m_pMethodArea->GetClass(strClassName);
+    if(pNewClass == NULL) return false;
 	object=pObjectHeap->CreateObject(pNewClass);
-	return TRUE;
+    return true;
 }
 
-BOOL JavaClass::CreateObjectArray(u2 index, u4 count, ObjectHeap *pObjectHeap, Object& object)
+bool JavaClass::CreateObjectArray(u2 index, u4 count, ObjectHeap *pObjectHeap, Object& object)
 {
 	char *cp=(char*)this->constant_pool[index];
-	ASSERT(cp[0] == CONSTANT_Class);
-	ASSERT(pObjectHeap);
+
 	if(cp[0] != CONSTANT_Class)
-		return FALSE;
+        return false;
 
 	u2 name_index=getu2(&cp[1]);
-	CString strClassName;
+    QString strClassName;
 	if(!this->GetStringFromConstPool(name_index, strClassName))
-		return FALSE;
-	JavaClass *pNewClass=this->m_pClassHeap->GetClass(strClassName);
-	if(pNewClass == NULL) return FALSE;
+        return false;
+    JavaClass *pNewClass=this->m_pMethodArea->GetClass(strClassName);
+    if(pNewClass == NULL) return false;
 
 	return pObjectHeap->CreateObjectArray(pNewClass, count, object);
 }
+
+void JavaClass::showClassInfo(void)
+{
+    QString name= GetName();
+    //cout<<"class name is "<<name<<endl;
+
+    QString superName= GetSuperClassName();
+    //cout<<"Super class name is "<<superName<<endl;
+
+    //cout<<"obejct size is "<<GetObjectSize();
+
+    for(int i=1;i<constant_pool_count-1;i++)
+    {
+        QString strRetVal;
+        //cout<<"Pool "<<i<<" Type "<<constant_pool[i]->tag;
+        if(1!=constant_pool[i]->tag)
+            continue;
+        GetStringFromConstPool(i,strRetVal);
+        //cout<<"String at pool "<<i<<" is "<<strRetVal<<endl;
+    }
+
+    for(int i=0;i<methods_count;i++)
+    {
+        if(methods[i].pCode_attr != NULL)
+        {
+            printf("Method %d\nCode Length= %d\n", i,methods[i].pCode_attr->code_length);
+            printf("Max stack = %d, Max Locals = %d, Exception table length= %d\nCODE\n",methods[i].pCode_attr->max_stack, methods[i].pCode_attr->max_locals, methods[i].pCode_attr->exception_table_length);
+
+            for(u4 j=0;j<methods[i].pCode_attr->code_length;j++)
+                printf("%d ", methods[i].pCode_attr->code[j]);
+            printf("\nENDCODE\n");
+        }
+        else if(methods[i].access_flags && ACC_NATIVE)
+        {
+            printf("Method %d is native\n",i);
+        }
+    }
+
+    for(int i=0; i< fields_count; i++)
+    {
+       QString name;
+       QString desc;
+
+        GetStringFromConstPool(fields[i].name_index, name);
+        GetStringFromConstPool(fields[i].descriptor_index, desc);
+        //wprintf(_T("Filed %d: Name: %s Type: %s\n"),i, name, desc);
+    }
+
+    for(int i=0; i< interfaces_count; i++)
+    {
+        u2 intr=interfaces[i];
+        QString name;
+        cp_info *pi=constant_pool[intr];
+        //ASSERT(pi->tag == CONSTANT_Class);
+        char *p=(char *)pi;
+        int ni=getu2((char *)(&p[1]));
+        GetStringFromConstPool(ni, name);
+        //cout<<"Interface "<<i<<" name is "<<name<<endl;
+    }
+}
+
+
